@@ -11,6 +11,7 @@ module PdfHelper
 
   def render_to_string_with_wicked_pdf(options = nil, *args, &block)
     if options.is_a?(Hash) && options.has_key?(:pdf)
+      options.delete(:pdf)
       make_pdf(options)
     else
       render_to_string_without_wicked_pdf(options, *args, &block)
