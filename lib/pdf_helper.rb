@@ -4,13 +4,21 @@ module PdfHelper
   def self.included(base)
     base.class_eval do
       alias_method_chain :render, :wicked_pdf
+      alias_method_chain :render_to_string, :wicked_pdf      
       after_filter :clean_temp_files
     end
   end
 
+  def render_to_string_with_wicked_pdf(options = nil, *args, &block)
+    if options.is_a?(Hash) && options.has_key?(:pdf)
+      make_pdf(options)
+    else
+      render_to_string_without_wicked_pdf(options, *args, &block)
+    end
+  end
+  
   def render_with_wicked_pdf(options = nil, *args, &block)
     if options.is_a?(Hash) && options.has_key?(:pdf)
-      logger.info '*'*15 + 'WICKED' + '*'*15
       options[:basic_auth] = request.env["HTTP_AUTHORIZATION"].split(" ").last if request.env["HTTP_AUTHORIZATION"]
       make_and_send_pdf(options.delete(:pdf), (WickedPdf.config || {}).merge(options))
     else
@@ -19,15 +27,19 @@ module PdfHelper
   end
 
   private
-  def clean_temp_files
-      if defined?(@hf_tempfiles)
-          @hf_tempfiles.each do | tf |
-              tf.close!
-          end
-      end
-  end
+    def clean_temp_files
+        if defined?(@hf_tempfiles)
+            @hf_tempfiles.each do | tf |
+                tf.close!
+            end
+        end
+    end
+    
     def make_pdf(options = {})
       html_string = render_to_string(:template => options[:template], :layout => options[:layout])
+      
+      options = prerender_header_and_footer(options)      
+      logger.info '*'*15 + 'WICKED' + '*'*15
       w = WickedPdf.new(options[:wkhtmltopdf])
       w.pdf_from_string(html_string, options)
     end
@@ -38,7 +50,6 @@ module PdfHelper
       options[:template] ||= File.join(controller_path, action_name)
       options[:disposition] ||= "inline"
 
-      options = prerender_header_and_footer(options)
       if options[:show_as_html]
         render :template => options[:template], :layout => options[:layout], :content_type => "text/html"
       else
